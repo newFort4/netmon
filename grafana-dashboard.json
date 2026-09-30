@@ -219,13 +219,13 @@
       "id": 8,
       "type": "timeseries",
       "title": "Cumulative Loss by Hop (cumulative comparison)",
-      "description": "Read this top-down. If loss starts at '192.168.0.1' (router) it is the router or your WiFi. If router is clean but the ISP hop and beyond drop, it is the ISP or the router's WAN queue. This single chart answers the question you actually have.",
+      "description": "Read this top-down. If loss starts at '192.168.0.1' (router) it is the router or your WiFi. If router is clean but the ISP hop and beyond drop, it is the ISP or the router's WAN queue. This single chart answers the question you actually have. Keep Host on 'All' to compare every hop at once; selecting a single host narrows it to that one.",
       "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
       "gridPos": { "h": 9, "w": 24, "x": 0, "y": 34 },
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - (increase(smokeping_response_duration_seconds_count{site=~\"$site\"}[$__range]) / clamp_min(increase(smokeping_requests_total{site=~\"$site\"}[$__range]), 1)))",
+          "expr": "100 * (1 - (increase(smokeping_response_duration_seconds_count{site=~\"$site\", host=~\"$host\"}[$__range]) / clamp_min(increase(smokeping_requests_total{site=~\"$site\", host=~\"$host\"}[$__range]), 1)))",
           "legendFormat": "{{host}}"
         }
       ],
@@ -304,7 +304,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(smokeping_send_errors_total{site=~\"$site\"}[5m]) + rate(smokeping_receive_errors_total{site=~\"$site\"}[5m])",
+          "expr": "rate(smokeping_send_errors_total{site=~\"$site\", host=~\"$host\"}[5m]) + rate(smokeping_receive_errors_total{site=~\"$site\"}[5m])",
           "legendFormat": "errors"
         }
       ],
@@ -328,7 +328,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(smokeping_response_duplicates_total{site=~\"$site\"}[5m])",
+          "expr": "rate(smokeping_response_duplicates_total{site=~\"$site\", host=~\"$host\"}[5m])",
           "legendFormat": "{{host}}"
         }
       ],
