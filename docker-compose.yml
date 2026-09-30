@@ -1,0 +1,57 @@
+services:
+  smokeping-prober:
+    image: quay.io/superq/smokeping-prober:latest
+    container_name: smokeping-prober
+    # ICMP needs raw sockets. NET_RAW + unconfined seccomp is the minimum;
+    # --privileged is unnecessary and we avoid it.
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      GOMAXPROCS: "1"
+    volumes:
+      - ./smokeping_prober.yml:/config/smokeping_prober.yml:ro
+    command:
+      - "--config.file=/config/smokeping_prober.yml"
+      - "--web.listen-address=:9374"
+    # Not published to the host: only Alloy needs to reach it, over the
+    # internal compose network.
+    expose:
+      - "9374"
+    healthcheck:
+      test: ["CMD", "/bin/smokeping_prober", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    ports:
+      - "12345:12345"
+    environment:
+      GF_CLOUD_PROM_URL: ${GF_CLOUD_PROM_URL}
+      GF_CLOUD_INSTANCE_ID: ${GF_CLOUD_INSTANCE_ID}
+      GF_CLOUD_API_TOKEN: ${GF_CLOUD_API_TOKEN}
+      SP_TARGET: ${SP_TARGET:-smokeping-prober:9374}
+      # Must exceed the prober's 1s ping interval, otherwise Prometheus scrapes
+      # the same cumulative counters faster than new pings land and the loss
+      # ratio goes noisy. 15s is a good floor.
+      SP_SCRAPE_INTERVAL: ${SP_SCRAPE_INTERVAL:-15s}
+      SITE_LABEL: ${SITE_LABEL:-docker-desktop}
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    depends_on:
+      - smokeping-prober
+    restart: unless-stopped
+
+volumes:
+  alloy-data:

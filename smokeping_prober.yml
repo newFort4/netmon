@@ -1,0 +1,30 @@
+---
+# Targets are layered on purpose. Comparing them tells you WHERE packets are
+# dropped, which is the actual question. A single ping to 1.1.1.1 cannot
+# distinguish "my router is dropping" from "my ISP is dropping".
+#
+#   router-lan  192.168.0.1   the box itself, over WiFi/LAN. If this drops,
+#                             the router or the wireless link is the culprit.
+#   isp-hop1    84.116.254.65 first hop past the router. Isolates the router's
+#                             WAN/NAT path from the ISP's network.
+#   anycast-v4  1.1.1.1       Cloudflare anycast. Stable, cheap, low loss.
+#   google-dns  8.8.8.8       Second independent anycast, different path.
+#   discord     162.159.128.233 Discord voice edge (Cloudflare). Probing this
+#                             specifically is what correlates with the live
+#                             stream dropouts you are seeing.
+#
+# 1s interval: this is an idle-latency monitor. Discord voice needs low jitter
+# and low loss, and both show up at 1s resolution. Total load is ~5 pings/sec,
+# which is negligible.
+
+targets:
+- hosts:
+  - 192.168.0.1
+  - 84.116.254.65
+  - 1.1.1.1
+  - 8.8.8.8
+  - 162.159.128.233
+  interval: 1s
+  network: ip
+  protocol: icmp
+  size: 56

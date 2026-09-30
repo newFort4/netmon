@@ -1,0 +1,346 @@
+{
+  "title": "Home Network - Packet Loss & Latency",
+  "uid": "netmon-home",
+  "tags": ["network", "smokeping", "home"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "site",
+        "label": "Site",
+        "type": "query",
+        "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+        "query": "label_values(smokeping_requests_total, site)",
+        "refresh": 1
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+        "query": "label_values(smokeping_requests_total{site=~\"$site\"}, host)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Packet Loss (last 5m)",
+      "description": "Percentage of ICMP probes with no reply. Anything above ~1% is audible on voice. The value is per-host: the host with the worst number is the one to investigate first.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - (increase(smokeping_response_duration_seconds_count{site=~\"$site\", host=~\"$host\"}[5m]) / clamp_min(increase(smokeping_requests_total{site=~\"$site\", host=~\"$host\"}[5m]), 1)))",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "orange", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Packet Loss Over Time",
+      "description": "The core chart. Spikes here ARE the dropouts you are hearing in Discord. Correlate a spike with the 'Discord' series to confirm it is the same event.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 7 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - (increase(smokeping_response_duration_seconds_count{site=~\"$site\", host=~\"$host\"}[1m]) / clamp_min(increase(smokeping_requests_total{site=~\"$site\", host=~\"$host\"}[1m]), 1)))",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["max", "mean"] } }
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "Latency & Jitter",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Latency p50 / p95 / p99",
+      "description": "p99 is what matters for voice, not p50. Discord's Opus codec starts audibly breaking up when jitter exceeds roughly 30ms. A p99 that is 10x the p50 means a queue is building somewhere.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le, host) (rate(smokeping_response_duration_seconds_bucket{site=~\"$site\", host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{host}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(smokeping_response_duration_seconds_bucket{site=~\"$site\", host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{host}}"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(smokeping_response_duration_seconds_bucket{site=~\"$site\", host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "p99 {{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["max", "mean"] } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Jitter (p99 - p50)",
+      "description": "Latency spread. Sustained values above ~20ms correlate directly with choppy voice. Spikes here without corresponding loss usually mean a buffer filling up (bufferbloat) rather than packets being dropped.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 25 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(smokeping_response_duration_seconds_bucket{site=~\"$site\", host=~\"$host\"}[$__rate_interval]))) - histogram_quantile(0.50, sum by (le, host) (rate(smokeping_response_duration_seconds_bucket{site=~\"$site\", host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["max"] } }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Diagnosis: Where is it dropping?",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Cumulative Loss by Hop (cumulative comparison)",
+      "description": "Read this top-down. If loss starts at '192.168.0.1' (router) it is the router or your WiFi. If router is clean but the ISP hop and beyond drop, it is the ISP or the router's WAN queue. This single chart answers the question you actually have.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 34 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - (increase(smokeping_response_duration_seconds_count{site=~\"$site\"}[$__range]) / clamp_min(increase(smokeping_requests_total{site=~\"$site\"}[$__range]), 1)))",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisLabel": "cumulative loss % over selected range"
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Current Snapshot",
+      "description": "Quick per-host health read. Sort by loss descending to find the sickest link.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 43 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - (increase(smokeping_response_duration_seconds_count{site=~\"$site\", host=~\"$host\"}[15m]) / clamp_min(increase(smokeping_requests_total{site=~\"$site\", host=~\"$host\"}[15m]), 1)))",
+          "legendFormat": "{{host}}",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.50, sum by (le, host) (rate(smokeping_response_duration_seconds_bucket{site=~\"$site\", host=~\"$host\"}[15m])))",
+          "legendFormat": "p50",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "host", "mode": "outer" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "__name__": true, "site": true, "job": true, "instance": true, "ip": true, "source": true, "tos": true, "le": true }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "filterable": true } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "unit", "value": "percent" }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Probe Health",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Probe Errors (should be flat zero)",
+      "description": "Non-zero here means the prober itself had trouble (send failures, receive errors) rather than the network dropping packets. Rule out a broken monitor before blaming the router.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 53 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(smokeping_send_errors_total{site=~\"$site\"}[5m]) + rate(smokeping_receive_errors_total{site=~\"$site\"}[5m])",
+          "legendFormat": "errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Duplicate Replies (should be flat zero)",
+      "description": "Duplicates suggest a path that is duplicating or reordering packets, which some routers do under load. A non-flat line here alongside latency spikes is a strong signal of router-side trouble.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 53 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(smokeping_response_duplicates_total{site=~\"$site\"}[5m])",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    }
+  ]
+}

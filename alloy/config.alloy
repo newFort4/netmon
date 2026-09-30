@@ -1,0 +1,42 @@
+// Scrapes the smokeping prober and forwards straight to Grafana Cloud Metrics
+// (Mimir) over remote_write. No local Prometheus, no disk, no retention limits
+// to manage.
+
+prometheus.scrape "smokeping" {
+  targets         = [{
+    __address__ = sys.env("SP_TARGET"),
+  }]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  job_name        = "smokeping"
+  scrape_interval = sys.env("SP_SCRAPE_INTERVAL")
+
+  metrics_path = "/metrics"
+}
+
+// Turns the two raw counters into the two things worth graphing:
+// a success ratio and latency percentiles. Recording these keeps the Grafana
+// panels simple and makes the queries cheap.
+prometheus.relabel "noop" {
+  forward_to = []
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GF_CLOUD_PROM_URL")
+
+    basic_auth {
+      username = sys.env("GF_CLOUD_INSTANCE_ID")
+      password = sys.env("GF_CLOUD_API_TOKEN")
+    }
+
+    queue_config {
+      capacity             = 5000
+      max_shards           = 50
+      max_samples_per_send = 1000
+    }
+  }
+
+  external_labels = {
+    site = sys.env("SITE_LABEL"),
+  }
+}
