@@ -6,7 +6,7 @@
   "schemaVersion": 39,
   "version": 1,
   "refresh": "10s",
-  "time": { "from": "now-6h", "to": "now" },
+  "time": { "from": "now-5m", "to": "now" },
   "templating": {
     "list": [
       {
@@ -341,6 +341,30 @@
         "overrides": []
       },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Probe Rate (pings/sec)",
+      "description": "Actual ping rate per target, measured from the request counter rather than assumed from config. With interval 0.4s each host should sit flat at 2.5 pings/sec. This is the continuity check for the monitor itself: a line that steps down to half means the prober is alive but only completing half its scheduled probes, and a line that hits zero means probing stopped while the dashboard still looks otherwise healthy.",
+      "datasource": { "type": "grafana-prometheus-datasource", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 60 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(smokeping_requests_total{site=~\"$site\", host=~\"$host\"}[$__rate_interval])",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "min"] } }
     }
   ]
 }

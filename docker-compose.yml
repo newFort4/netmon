@@ -36,10 +36,10 @@ services:
       GF_CLOUD_INSTANCE_ID: ${GF_CLOUD_INSTANCE_ID}
       GF_CLOUD_API_TOKEN: ${GF_CLOUD_API_TOKEN}
       SP_TARGET: ${SP_TARGET:-smokeping-prober:9374}
-      # Must exceed the prober's 1s ping interval, otherwise Prometheus scrapes
-      # the same cumulative counters faster than new pings land and the loss
-      # ratio goes noisy. 15s is a good floor.
-      SP_SCRAPE_INTERVAL: ${SP_SCRAPE_INTERVAL:-15s}
+      # Default only; .env overrides it. Kept in sync with the prober's
+      # interval in smokeping_prober.yml (0.4s = 2.5 pings/sec). scrape_timeout
+      # in alloy/config.alloy must stay strictly below whatever this resolves to.
+      SP_SCRAPE_INTERVAL: ${SP_SCRAPE_INTERVAL:-0.4s}
       SITE_LABEL: ${SITE_LABEL:-docker-desktop}
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro

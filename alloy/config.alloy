@@ -6,18 +6,31 @@ prometheus.scrape "smokeping" {
   targets         = [{
     __address__ = sys.env("SP_TARGET"),
   }]
-  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  forward_to      = [prometheus.relabel.drop_runtime.receiver]
   job_name        = "smokeping"
   scrape_interval = sys.env("SP_SCRAPE_INTERVAL")
+
+  // Alloy refuses to start if scrape_timeout >= scrape_interval, and the
+  // default is 10s -- so this must be set explicitly whenever the interval is
+  // below 10s. Keep it strictly below the interval: at a 0.4s scrape this
+  // leaves ~100ms of slack, which is ample for a local /metrics read.
+  scrape_timeout = "300ms"
 
   metrics_path = "/metrics"
 }
 
-// Turns the two raw counters into the two things worth graphing:
-// a success ratio and latency percentiles. Recording these keeps the Grafana
-// panels simple and makes the queries cheap.
-prometheus.relabel "noop" {
-  forward_to = []
+// 56 of the 80 series the prober exposes are Go runtime and process
+// bookkeeping (go_memstats_*, go_gc_*, process_*, promhttp_*). They say nothing
+// about network health, and at a 0.4s scrape they would be 70% of ingested
+// volume. Dropping them here is what keeps the faster scrape affordable.
+prometheus.relabel "drop_runtime" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "go_.*|process_.*|promhttp_.*"
+    action        = "drop"
+  }
 }
 
 prometheus.remote_write "grafana_cloud" {
